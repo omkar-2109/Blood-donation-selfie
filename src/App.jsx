@@ -347,6 +347,7 @@ function CameraAndAdjustStep({
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
 
+    // Draw unmirrored video onto canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/png', 0.95);
 
@@ -355,8 +356,10 @@ function CameraAndAdjustStep({
     }
 
     const selfieObj = { src: dataUrl, width: canvas.width, height: canvas.height };
+    // Synchronize editor mirror with camera mirror setting
+    setEditorState((prev) => ({ ...prev, mirror: Boolean(mirror) }));
     setCapturedSelfie(selfieObj);
-    onCaptured(selfieObj);
+    onCaptured(selfieObj, Boolean(mirror));
   };
 
   const retakeSelfie = () => {
@@ -486,7 +489,7 @@ function CameraAndAdjustStep({
                 width: `${selectedFrame.normalized.photoArea.width * 100}%`,
                 height: `${selectedFrame.normalized.photoArea.height * 100}%`,
                 objectFit: 'cover',
-                transform: `translate(-50%, -50%) translate(${editorState.offsetX}px, ${editorState.offsetY}px) scale(${editorState.zoom}) ${editorState.mirror ? 'scaleX(-1)' : ''} rotate(${editorState.rotationDeg}deg)`
+                transform: `translate(-50%, -50%) translate(${editorState.offsetX}px, ${editorState.offsetY}px) scale(${editorState.zoom}) ${editorState.mirror ? 'scaleX(-1)' : 'scaleX(1)'} rotate(${editorState.rotationDeg}deg)`
               }}
             />
             {/* Frame Overlay */}
@@ -548,7 +551,7 @@ function CameraAndAdjustStep({
 
             <button
               className="btn btn--primary btn--lg btn--full"
-              style={{ marginTop: '16px' }}
+              style={{ marginTop: '16px', marginBottom: '20px' }}
               onClick={onRenderPreview}
             >
               Generate Final Frame Preview →
@@ -621,7 +624,7 @@ function ReviewStep({
 }
 
 /* ==========================================================================
-   STEP 4: SUCCESS / SHARE SCREEN
+   STEP 4: SUCCESS / SHARE SCREEN (DIRECT WHATSAPP CHAT PREFILL)
    ========================================================================== */
 function SuccessStep({
   previewUrl,
@@ -630,7 +633,7 @@ function SuccessStep({
   selectedFrame,
   onStartNew
 }) {
-  const [resetCountdown, setResetCountdown] = useState(25);
+  const [resetCountdown, setResetCountdown] = useState(30);
   const [shareMsg, setShareMsg] = useState('');
   const formattedName = useMemo(() => formatName(form.fullName), [form.fullName]);
 
@@ -665,25 +668,22 @@ function SuccessStep({
     setShareMsg('');
     const whatsappText = `DHAN NIRANKAR JI 🙏\n\nI participated in the Humanness Blood Drive selfie campaign! Blood should flow in Veins, Not in Drains.\n\n- ${formattedName}`;
 
-    try {
-      if (previewBlob && navigator.canShare && navigator.share) {
-        const file = new File([previewBlob], 'sncf-framed-selfie.png', { type: 'image/png' });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: 'Humanness Blood Drive Selfie',
-            text: whatsappText,
-            files: [file]
-          });
-          return;
-        }
-      }
-    } catch {
-      // User cancelled
+    // 1. Download image automatically so user can attach it
+    downloadPng();
+
+    // 2. Clean up target phone number (extract digits & add 91 country code if 10-digit)
+    let cleanPhone = (form.normalizedPhone || form.whatsappNumber || '').replace(/\D/g, '');
+    if (cleanPhone.length === 10) {
+      cleanPhone = '91' + cleanPhone;
     }
 
-    downloadPng();
-    setShareMsg('Your framed selfie has been downloaded! You can attach it in WhatsApp.');
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
+    setShareMsg('Framed selfie downloaded to your device! Opening WhatsApp chat...');
+
+    // 3. Open WhatsApp directly targeting the participant's chat
+    const waUrl = cleanPhone
+      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappText)}`
+      : `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
+
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -817,8 +817,8 @@ function AdminSystem() {
   const handleDelete = async (sub) => {
     if (!window.confirm(`Are you sure you want to delete the record for ${sub.details?.fullName || 'this participant'}?`)) return;
     try {
-      // Delete from Firebase Firestore + Storage
-      await deleteSubmissionFromFirebase(sub.id, sub.firestoreId, sub.storagePath);
+      // Delete from Firebase Firestore
+      await deleteSubmissionFromFirebase(sub.id, sub.firestoreId);
       // Delete from IndexedDB
       await deleteOfflineSubmission(sub.id);
 
@@ -920,7 +920,7 @@ function AdminSystem() {
         <div>
           <h2>SNCF Admin Portal</h2>
           <p style={{ color: 'var(--sncf-muted)', fontSize: '0.9rem' }}>
-            Humanness Blood Drive Firebase Cloud Database & Storage
+            Humanness Blood Drive Firebase Cloud Database
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -1181,7 +1181,7 @@ function KioskContainer() {
         whatsappNumber: form.normalizedPhone || form.whatsappNumber
       };
 
-      // 1. Upload framed image to Firebase Storage & save record to Firestore
+      // 1. Upload framed image to Firestore & save document
       let savedRecord = null;
       try {
         savedRecord = await saveSubmissionToFirebase({
@@ -1299,8 +1299,9 @@ function KioskContainer() {
               setMirror={setMirror}
               editorState={editorState}
               setEditorState={setEditorState}
-              onCaptured={(selfie) => {
+              onCaptured={(selfie, isMirrored) => {
                 setCapturedSelfie(selfie);
+                setEditorState((prev) => ({ ...prev, mirror: isMirrored }));
                 setStep('edit');
               }}
               onRenderPreview={generatePreviewCanvas}
