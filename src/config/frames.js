@@ -34,41 +34,41 @@ export const FRAME_CONFIGS = [
     subtitle: 'Selfie Frame with Personalized Name',
     description: 'Displays your photo in the central frame and renders your formatted name ([Name] Ji) inside the light-pink campaign banner.',
     src: ASSETS.frameWithName,
-    aspectRatio: '1448 / 2048',
-    aspectRatioValue: 1448 / 2048,
-    sourceSize: { width: 1448, height: 2048 },
+    aspectRatio: '682 / 1024',
+    aspectRatioValue: 682 / 1024,
+    sourceSize: { width: 682, height: 1024 },
     hasNameArea: true,
     normalized: {
       photoArea: {
-        x: 0.1575, // 228 / 1448
-        y: 0.1670, // 342 / 2048
-        width: 0.6865, // 994 / 1448
-        height: 0.5654 // 1158 / 2048 (from y=342 to y=1500)
+        x: 0.1378, // 94 / 682
+        y: 0.1670, // 171 / 1024
+        width: 0.7273, // 496 / 682
+        height: 0.5350 // from y=171 to y=718
       },
       nameArea: {
-        x: 0.1692, // 245 / 1448 (centered across the banner)
-        y: 0.7400, // 1515 / 2048 -> EXACT VERTICAL CENTER OF THE PINK NAME BANNER!
-        width: 0.6616, // 958 / 1448
-        height: 0.0464 // 95 / 2048
+        x: 0.1686, // 115 / 682
+        y: 0.7422, // 760 / 1024 -> EXACT VERTICAL CENTER OF THE PINK NAME BANNER!
+        width: 0.6628, // 452 / 682
+        height: 0.0840 // 86 / 1024
       }
     },
     pixelCoords: {
       photoArea: {
-        x: 228,
-        y: 342,
-        width: 994,
-        height: 1158
+        x: 94,
+        y: 171,
+        width: 496,
+        height: 547
       },
       nameArea: {
-        x: 245,
-        y: 1515,
-        width: 958,
-        height: 95
+        x: 115,
+        y: 760,
+        width: 452,
+        height: 86
       }
     },
     textStyle: {
       fontFamily: "'Outfit', 'Segoe UI', sans-serif",
-      fontSizeRatio: 0.030,
+      fontSizeRatio: 0.034,
       fontWeight: '700',
       color: '#8B0000',
       shadowColor: 'rgba(255, 255, 255, 0.7)',
