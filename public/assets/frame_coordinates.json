@@ -1,0 +1,45 @@
+{
+  "frames": {
+    "frame_photo_only.png": {
+      "source_size_px": [
+        1024,
+        1536
+      ],
+      "photo_window": {
+        "x": 145,
+        "y": 300,
+        "width": 735,
+        "height": 900
+      },
+      "fit": "cover",
+      "mirror_for_selfie_preview": true
+    },
+    "frame_with_name.png": {
+      "source_size_px": [
+        1448,
+        2048
+      ],
+      "photo_window": {
+        "x": 160,
+        "y": 245,
+        "width": 1120,
+        "height": 890
+      },
+      "name_area": {
+        "x": 265,
+        "y": 1030,
+        "width": 900,
+        "height": 115
+      },
+      "fit": "cover",
+      "mirror_for_selfie_preview": true
+    }
+  },
+  "important": [
+    "Use the PNG frames as foreground overlays; their center photo areas are transparent.",
+    "Render the camera image underneath the frame, clipped to the photo_window.",
+    "Mirror the live camera preview and the captured selfie for a natural selfie experience.",
+    "Allow crop/zoom/pan before final export.",
+    "For the name frame, append ' Ji' after the normalized display name."
+  ]
+}
