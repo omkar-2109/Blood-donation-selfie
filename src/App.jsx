@@ -302,8 +302,46 @@ function CameraAndAdjustStep({
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
 
+      let videoConstraints = {
+        facingMode: { ideal: facingMode },
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 },
+        aspectRatio: { ideal: 4 / 3 }
+      };
+
+      // When using back camera, prefer the main 1x standard back lens (avoiding 0.5x ultrawide lens)
+      if (facingMode === 'environment' && navigator.mediaDevices?.enumerateDevices) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+
+          const backCameras = videoInputs.filter((d) =>
+            /back|rear|environment/i.test(d.label) || (!/front|user|selfie/i.test(d.label) && videoInputs.length > 1)
+          );
+
+          if (backCameras.length > 0) {
+            // Find main standard back camera (avoid labels containing ultra, 0.5, macro, wide)
+            const mainBackCam =
+              backCameras.find(
+                (d) => !/ultra|0\.5|macro|wide-angle|wide angle/i.test(d.label) && /main|standard|0|camera 0/i.test(d.label)
+              ) || backCameras[0];
+
+            if (mainBackCam?.deviceId) {
+              videoConstraints = {
+                deviceId: { exact: mainBackCam.deviceId },
+                width: { ideal: 1920, min: 1280 },
+                height: { ideal: 1080, min: 720 },
+                aspectRatio: { ideal: 4 / 3 }
+              };
+            }
+          }
+        } catch {
+          // Fallback to facingMode ideal
+        }
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 960 } },
+        video: videoConstraints,
         audio: false
       });
 
@@ -356,7 +394,6 @@ function CameraAndAdjustStep({
     }
 
     const selfieObj = { src: dataUrl, width: canvas.width, height: canvas.height };
-    // Synchronize editor mirror with camera mirror setting
     setEditorState((prev) => ({ ...prev, mirror: Boolean(mirror) }));
     setCapturedSelfie(selfieObj);
     onCaptured(selfieObj, Boolean(mirror));
@@ -616,7 +653,7 @@ function ReviewStep({
         </button>
 
         <button className="btn btn--primary btn--lg" onClick={onAccept} disabled={saving || !previewUrl}>
-          {saving ? 'Saving to Cloud...' : '✓ ACCEPT & CONTINUE'}
+          {saving ? 'Saving to Firebase Cloud...' : '✓ ACCEPT & CONTINUE'}
         </button>
       </div>
     </div>
@@ -624,7 +661,7 @@ function ReviewStep({
 }
 
 /* ==========================================================================
-   STEP 4: SUCCESS / SHARE SCREEN (DIRECT WHATSAPP CHAT PREFILL)
+   STEP 4: SUCCESS / SHARE SCREEN (NATIVE IMAGE SHARE + DIRECT WHATSAPP CHAT)
    ========================================================================== */
 function SuccessStep({
   previewUrl,
@@ -664,22 +701,51 @@ function SuccessStep({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const shareWhatsApp = async () => {
-    setShareMsg('');
-    const whatsappText = `DHAN NIRANKAR JI 🙏\n\nI participated in the Humanness Blood Drive selfie campaign! Blood should flow in Veins, Not in Drains.\n\n- ${formattedName}`;
-
-    // 1. Download image automatically so user can attach it
-    downloadPng();
-
-    // 2. Clean up target phone number (extract digits & add 91 country code if 10-digit)
+  const getCleanTargetPhone = () => {
     let cleanPhone = (form.normalizedPhone || form.whatsappNumber || '').replace(/\D/g, '');
     if (cleanPhone.length === 10) {
       cleanPhone = '91' + cleanPhone;
     }
+    return cleanPhone;
+  };
 
-    setShareMsg('Framed selfie downloaded to your device! Opening WhatsApp chat...');
+  const shareWithImage = async () => {
+    setShareMsg('');
+    const whatsappText = `DHAN NIRANKAR JI 🙏\n\nI participated in the Humanness Blood Drive selfie campaign! Blood should flow in Veins, Not in Drains.\n\n- ${formattedName}`;
 
-    // 3. Open WhatsApp directly targeting the participant's chat
+    // Always download as backup
+    downloadPng();
+
+    // Try Native Web Share API (attaches actual image file on Mobile Android/iOS WhatsApp)
+    try {
+      if (previewBlob && navigator.canShare) {
+        const file = new File([previewBlob], `SNCF-Selfie-${formattedName.replace(/\s+/g, '-')}.png`, {
+          type: 'image/png'
+        });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'Humanness Blood Drive Selfie',
+            text: whatsappText,
+            files: [file]
+          });
+          setShareMsg('Shared successfully!');
+          return;
+        }
+      }
+    } catch {
+      // User cancelled native share sheet
+    }
+
+    // Fallback: Open direct WhatsApp chat
+    openDirectWhatsApp();
+  };
+
+  const openDirectWhatsApp = () => {
+    const whatsappText = `DHAN NIRANKAR JI 🙏\n\nI participated in the Humanness Blood Drive selfie campaign! Blood should flow in Veins, Not in Drains.\n\n- ${formattedName}`;
+    const cleanPhone = getCleanTargetPhone();
+
+    setShareMsg('Framed photo downloaded to your device! Opening WhatsApp chat...');
+
     const waUrl = cleanPhone
       ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappText)}`
       : `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
@@ -711,12 +777,22 @@ function SuccessStep({
           📥 Download Image (PNG)
         </button>
 
-        <button className="btn btn--whatsapp btn--lg" onClick={shareWhatsApp}>
-          📲 Share on WhatsApp
+        <button className="btn btn--whatsapp btn--lg" onClick={shareWithImage}>
+          📲 Share with Photo on WhatsApp
         </button>
       </div>
 
-      <div className="kiosk-auto-reset-banner">
+      <div style={{ textAlign: 'center', marginTop: '12px' }}>
+        <button
+          className="btn btn--ghost"
+          style={{ fontSize: '0.88rem', color: '#128C7E' }}
+          onClick={openDirectWhatsApp}
+        >
+          💬 Or Open Direct Chat with {form.whatsappNumber ? `+91 ${form.whatsappNumber}` : 'WhatsApp'}
+        </button>
+      </div>
+
+      <div className="kiosk-auto-reset-banner" style={{ marginTop: '20px' }}>
         <p>
           Kiosk will auto-reset in <strong>{resetCountdown}s</strong> for the next donor.
         </p>
@@ -733,7 +809,7 @@ function SuccessStep({
 }
 
 /* ==========================================================================
-   HIDDEN ADMIN SYSTEM (POWERED BY FIREBASE FIRESTORE + STORAGE)
+   HIDDEN ADMIN SYSTEM (POWERED BY FIREBASE FIRESTORE)
    ========================================================================== */
 function AdminSystem() {
   const [token, setToken] = useState(() => localStorage.getItem('sncf_admin_token') || '');
@@ -830,7 +906,7 @@ function AdminSystem() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['ID', 'Date', 'Name', 'Formatted Name', 'Age', 'Gender', 'Branch', 'WhatsApp', 'Frame', 'Image URL'];
+    const headers = ['ID', 'Date', 'Name', 'Formatted Name', 'Age', 'Gender', 'Branch', 'WhatsApp', 'Frame'];
     const rows = filteredSubmissions.map((s) => [
       s.id,
       s.createdAt,
@@ -840,8 +916,7 @@ function AdminSystem() {
       s.details?.gender,
       s.details?.branch,
       s.details?.whatsappNumber,
-      s.frameId,
-      s.imageUrl
+      s.frameId
     ]);
     const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c || ''}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -1014,13 +1089,17 @@ function AdminSystem() {
             {filteredSubmissions.map((sub) => (
               <tr key={sub.id}>
                 <td>
-                  <img
-                    src={sub.imageUrl}
-                    alt={sub.details?.fullName}
-                    className="admin-thumb"
-                    onClick={() => setActiveItem(sub)}
-                    style={{ cursor: 'pointer' }}
-                  />
+                  {sub.imageUrl ? (
+                    <img
+                      src={sub.imageUrl}
+                      alt={sub.details?.fullName}
+                      className="admin-thumb"
+                      onClick={() => setActiveItem(sub)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  ) : (
+                    <span style={{ color: 'var(--sncf-muted)', fontSize: '0.8rem' }}>No Photo</span>
+                  )}
                 </td>
                 <td style={{ fontWeight: '600' }}>{sub.details?.fullName}</td>
                 <td style={{ color: 'var(--sncf-red)', fontWeight: '600' }}>
@@ -1072,15 +1151,19 @@ function AdminSystem() {
               Branch: {activeItem.details?.branch} | Age: {activeItem.details?.age} | Phone:{' '}
               {activeItem.details?.whatsappNumber}
             </p>
-            <img
-              src={activeItem.imageUrl}
-              alt="Framed Selfie"
-              style={{ width: '100%', borderRadius: '14px', border: '1px solid var(--sncf-border)', marginBottom: '16px' }}
-            />
+            {activeItem.imageUrl ? (
+              <img
+                src={activeItem.imageUrl}
+                alt="Framed Selfie"
+                style={{ width: '100%', borderRadius: '14px', border: '1px solid var(--sncf-border)', marginBottom: '16px' }}
+              />
+            ) : null}
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <a href={activeItem.imageUrl} download target="_blank" rel="noreferrer" className="btn btn--primary">
-                Download PNG
-              </a>
+              {activeItem.imageUrl ? (
+                <a href={activeItem.imageUrl} download target="_blank" rel="noreferrer" className="btn btn--primary">
+                  Download PNG
+                </a>
+              ) : null}
               <button className="btn btn--secondary" onClick={() => setActiveItem(null)}>
                 Close
               </button>

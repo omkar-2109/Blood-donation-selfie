@@ -27,15 +27,33 @@ export const db = getFirestore(app);
 const SUBMISSIONS_COLLECTION = 'submissions';
 
 /**
- * Converts a Blob to a base64 Data URL so it can be stored directly
- * in Firestore without requiring Firebase Cloud Storage or a paid plan.
+ * Compresses the framed image into a compact JPEG data URL (~80-150KB)
+ * so it fits safely within Firestore's strict 1 MiB document size limit.
  */
-function blobToBase64(blob) {
+function compressImageForFirestore(blob, maxWidth = 800, quality = 0.75) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      resolve(dataUrl);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Image compression failed'));
+    };
+    img.src = url;
   });
 }
 
@@ -47,10 +65,15 @@ export async function saveSubmissionToFirebase({ details, frameId, mirror, image
   try {
     const id = crypto.randomUUID();
 
-    // Convert framed photo to Data URL
+    // Compress image to ensure payload is < 200KB (well under Firestore's 1MB limit)
     let imageUrl = '';
     if (imageBlob) {
-      imageUrl = await blobToBase64(imageBlob);
+      try {
+        imageUrl = await compressImageForFirestore(imageBlob, 760, 0.72);
+      } catch {
+        // Fallback
+        imageUrl = '';
+      }
     }
 
     // Save document in Firestore
