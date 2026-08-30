@@ -5,6 +5,11 @@ import { SNCF_BRANCHES } from './config/branches.js';
 import { formatName, formatDate, validateAndNormalizePhone } from './utils/formatters.js';
 import { clampOffsets, loadImage, renderFramedSelfie, canvasToBlob } from './utils/imageEngine.js';
 import { saveOfflineSubmission, getOfflineSubmissions, deleteOfflineSubmission } from './utils/offlineStore.js';
+import {
+  saveSubmissionToFirebase,
+  getSubmissionsFromFirebase,
+  deleteSubmissionFromFirebase
+} from './config/firebase.js';
 
 /* ==========================================================================
    HEADER COMPONENT
@@ -608,7 +613,7 @@ function ReviewStep({
         </button>
 
         <button className="btn btn--primary btn--lg" onClick={onAccept} disabled={saving || !previewUrl}>
-          {saving ? 'Saving Selfie...' : '✓ ACCEPT & CONTINUE'}
+          {saving ? 'Saving to Cloud...' : '✓ ACCEPT & CONTINUE'}
         </button>
       </div>
     </div>
@@ -728,7 +733,7 @@ function SuccessStep({
 }
 
 /* ==========================================================================
-   HIDDEN ADMIN SYSTEM (WORKS ON NODE OR NETLIFY OFFLINE)
+   HIDDEN ADMIN SYSTEM (POWERED BY FIREBASE FIRESTORE + STORAGE)
    ========================================================================== */
 function AdminSystem() {
   const [token, setToken] = useState(() => localStorage.getItem('sncf_admin_token') || '');
@@ -750,28 +755,16 @@ function AdminSystem() {
       setLoading(true);
       setError('');
 
-      // Try server API first
-      let serverLoaded = false;
-      if (authToken) {
-        try {
-          const res = await fetch('/api/admin/submissions', {
-            headers: { Authorization: `Bearer ${authToken}` }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setSubmissions(data.submissions || []);
-            serverLoaded = true;
-          }
-        } catch {
-          // Server not available
-        }
+      // 1. Fetch from Firebase Firestore
+      const firebaseData = await getSubmissionsFromFirebase();
+      if (firebaseData && firebaseData.length > 0) {
+        setSubmissions(firebaseData);
+        return;
       }
 
-      // If server is not reachable (e.g. Netlify static hosting), read from IndexedDB
-      if (!serverLoaded) {
-        const offlineData = await getOfflineSubmissions();
-        setSubmissions(offlineData);
-      }
+      // 2. Fallback to local IndexedDB
+      const offlineData = await getOfflineSubmissions();
+      setSubmissions(offlineData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -789,10 +782,9 @@ function AdminSystem() {
     e.preventDefault();
     setAuthError('');
 
-    // Default admin pass check
     if (passwordInput === 'sncf2026') {
-      localStorage.setItem('sncf_admin_token', 'offline_admin_token');
-      setToken('offline_admin_token');
+      localStorage.setItem('sncf_admin_token', 'firebase_admin_token');
+      setToken('firebase_admin_token');
       setPasswordInput('');
       return;
     }
@@ -822,33 +814,34 @@ function AdminSystem() {
     setToken('');
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this record?')) return;
+  const handleDelete = async (sub) => {
+    if (!window.confirm(`Are you sure you want to delete the record for ${sub.details?.fullName || 'this participant'}?`)) return;
     try {
-      await fetch(`/api/admin/submissions/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      }).catch(() => {});
+      // Delete from Firebase Firestore + Storage
+      await deleteSubmissionFromFirebase(sub.id, sub.firestoreId, sub.storagePath);
+      // Delete from IndexedDB
+      await deleteOfflineSubmission(sub.id);
 
-      await deleteOfflineSubmission(id);
-      setSubmissions((prev) => prev.filter((item) => item.id !== id));
-      if (activeItem?.id === id) setActiveItem(null);
+      setSubmissions((prev) => prev.filter((item) => item.id !== sub.id));
+      if (activeItem?.id === sub.id) setActiveItem(null);
     } catch {
       alert('Error deleting submission.');
     }
   };
 
   const handleExportCSV = () => {
-    const headers = ['ID', 'Date', 'Name', 'Formatted Name', 'Age', 'Branch', 'WhatsApp', 'Frame'];
+    const headers = ['ID', 'Date', 'Name', 'Formatted Name', 'Age', 'Gender', 'Branch', 'WhatsApp', 'Frame', 'Image URL'];
     const rows = filteredSubmissions.map((s) => [
       s.id,
       s.createdAt,
       s.details?.fullName,
       s.details?.formattedName,
       s.details?.age,
+      s.details?.gender,
       s.details?.branch,
       s.details?.whatsappNumber,
-      s.frameId
+      s.frameId,
+      s.imageUrl
     ]);
     const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c || ''}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -892,7 +885,7 @@ function AdminSystem() {
             🔒 Admin Security Login
           </h2>
           <p className="kiosk-card__subtitle" style={{ textAlign: 'center', marginBottom: '20px' }}>
-            SNCF Humanness Blood Drive Management System
+            SNCF Humanness Blood Drive Management System (Firebase Cloud)
           </p>
 
           {authError ? <div className="alert alert--error">{authError}</div> : null}
@@ -927,7 +920,7 @@ function AdminSystem() {
         <div>
           <h2>SNCF Admin Portal</h2>
           <p style={{ color: 'var(--sncf-muted)', fontSize: '0.9rem' }}>
-            Humanness Blood Drive Visitor Registrations & Photos
+            Humanness Blood Drive Firebase Cloud Database & Storage
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -999,7 +992,7 @@ function AdminSystem() {
         </div>
       </div>
 
-      {loading ? <p style={{ textAlign: 'center', padding: '20px' }}>Loading submissions...</p> : null}
+      {loading ? <p style={{ textAlign: 'center', padding: '20px' }}>Loading submissions from Firebase...</p> : null}
       {error ? <div className="alert alert--error">{error}</div> : null}
 
       <div className="admin-table-container">
@@ -1050,7 +1043,7 @@ function AdminSystem() {
                     <button
                       className="btn btn--ghost"
                       style={{ padding: '4px 10px', minHeight: '34px', fontSize: '0.8rem', color: '#C62828' }}
-                      onClick={() => handleDelete(sub.id)}
+                      onClick={() => handleDelete(sub)}
                     >
                       Delete
                     </button>
@@ -1061,7 +1054,7 @@ function AdminSystem() {
             {filteredSubmissions.length === 0 && !loading ? (
               <tr>
                 <td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: 'var(--sncf-muted)' }}>
-                  No submission records found.
+                  No submission records found in Firebase Firestore.
                 </td>
               </tr>
             ) : null}
@@ -1177,43 +1170,42 @@ function KioskContainer() {
       setSaving(true);
       setError('');
 
-      const submissionRecord = {
+      const formattedName = formatName(form.fullName);
+      const details = {
+        fullName: form.fullName,
+        formattedName,
+        age: form.age,
+        gender: form.gender,
+        branch: form.branch,
+        customBranch: form.customBranch,
+        whatsappNumber: form.normalizedPhone || form.whatsappNumber
+      };
+
+      // 1. Upload framed image to Firebase Storage & save record to Firestore
+      let savedRecord = null;
+      try {
+        savedRecord = await saveSubmissionToFirebase({
+          details,
+          frameId: selectedFrame.id,
+          mirror: editorState.mirror,
+          imageBlob: previewBlob
+        });
+      } catch (firebaseErr) {
+        console.warn('Firebase save warning:', firebaseErr);
+      }
+
+      // 2. Save to local IndexedDB backup
+      const backupRecord = savedRecord || {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
-        details: {
-          fullName: form.fullName,
-          formattedName: formatName(form.fullName),
-          age: form.age,
-          gender: form.gender,
-          branch: form.branch,
-          customBranch: form.customBranch,
-          whatsappNumber: form.normalizedPhone || form.whatsappNumber
-        },
+        details,
         frameId: selectedFrame.id,
         imageUrl: previewUrl,
         status: 'Verified'
       };
+      await saveOfflineSubmission(backupRecord);
 
-      // Always save to offline IndexedDB store first
-      await saveOfflineSubmission(submissionRecord);
-
-      // Attempt background POST to server if Express backend is running
-      try {
-        const formData = new FormData();
-        formData.append('details', JSON.stringify(submissionRecord.details));
-        formData.append('frameId', selectedFrame.id);
-        formData.append('mirror', String(editorState.mirror));
-        formData.append('image', new File([previewBlob], 'framed-selfie.png', { type: 'image/png' }));
-
-        await fetch('/api/submissions', {
-          method: 'POST',
-          body: formData
-        });
-      } catch {
-        // Safe to ignore if deployed as static frontend on Netlify
-      }
-
-      // Smoothly advance to share step
+      // 3. Move to Step 4 (Success / Share)
       setStep('share');
     } catch (err) {
       setError(err.message || 'Save error.');
