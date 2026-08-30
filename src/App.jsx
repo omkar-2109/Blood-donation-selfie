@@ -4,6 +4,7 @@ import { FRAME_CONFIGS } from './config/frames.js';
 import { SNCF_BRANCHES } from './config/branches.js';
 import { formatName, formatDate, validateAndNormalizePhone } from './utils/formatters.js';
 import { clampOffsets, loadImage, renderFramedSelfie, canvasToBlob } from './utils/imageEngine.js';
+import { saveOfflineSubmission, getOfflineSubmissions, deleteOfflineSubmission } from './utils/offlineStore.js';
 
 /* ==========================================================================
    HEADER COMPONENT
@@ -110,7 +111,6 @@ function DetailsStep({ form, setForm, onNext }) {
       return;
     }
 
-    // Save normalized phone and proceed
     setForm((prev) => ({
       ...prev,
       normalizedPhone: phoneVal.normalized
@@ -290,7 +290,6 @@ function CameraAndAdjustStep({
 
   const formattedName = useMemo(() => formatName(form.fullName), [form.fullName]);
 
-  // Camera stream starter
   const startCamera = async () => {
     try {
       setCameraError('');
@@ -343,11 +342,9 @@ function CameraAndAdjustStep({
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
 
-    // Draw video to canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/png', 0.95);
 
-    // Stop camera stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
     }
@@ -362,7 +359,6 @@ function CameraAndAdjustStep({
     setEditorState((prev) => ({ ...prev, offsetX: 0, offsetY: 0, zoom: 1.0, rotationDeg: 0 }));
   };
 
-  // Pointer Drag handling for photo positioning
   const handlePointerDown = (e) => {
     if (!capturedSelfie) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -393,8 +389,11 @@ function CameraAndAdjustStep({
     dragRef.current = null;
   };
 
-  // Frame aspect ratio string for CSS
   const frameAspectRatioStyle = selectedFrame.aspectRatio || '1448 / 2048';
+  const photoCenter = {
+    x: (selectedFrame.normalized.photoArea.x + selectedFrame.normalized.photoArea.width / 2) * 100,
+    y: (selectedFrame.normalized.photoArea.y + selectedFrame.normalized.photoArea.height / 2) * 100
+  };
 
   return (
     <div className="kiosk-card">
@@ -471,14 +470,17 @@ function CameraAndAdjustStep({
             onPointerCancel={endDrag}
             onPointerLeave={endDrag}
           >
-            {/* User Photo */}
+            {/* User Photo positioned in cutout center */}
             <img
               src={capturedSelfie.src}
               alt="Selfie"
               className="editor-user-photo"
               style={{
-                width: `${capturedSelfie.width}px`,
-                height: `${capturedSelfie.height}px`,
+                left: `${photoCenter.x}%`,
+                top: `${photoCenter.y}%`,
+                width: `${selectedFrame.normalized.photoArea.width * 100}%`,
+                height: `${selectedFrame.normalized.photoArea.height * 100}%`,
+                objectFit: 'cover',
                 transform: `translate(-50%, -50%) translate(${editorState.offsetX}px, ${editorState.offsetY}px) scale(${editorState.zoom}) ${editorState.mirror ? 'scaleX(-1)' : ''} rotate(${editorState.rotationDeg}deg)`
               }}
             />
@@ -507,7 +509,7 @@ function CameraAndAdjustStep({
               <label>Zoom:</label>
               <input
                 type="range"
-                min="0.7"
+                min="0.8"
                 max="2.5"
                 step="0.05"
                 value={editorState.zoom}
@@ -596,7 +598,7 @@ function ReviewStep({
         )}
       </div>
 
-      <div className="camera-controls-bar">
+      <div className="camera-controls-bar" style={{ paddingBottom: '30px' }}>
         <button className="btn btn--secondary" onClick={onAdjust}>
           ✎ Adjust Photo
         </button>
@@ -623,11 +625,10 @@ function SuccessStep({
   selectedFrame,
   onStartNew
 }) {
-  const [resetCountdown, setResetCountdown] = useState(15);
+  const [resetCountdown, setResetCountdown] = useState(25);
   const [shareMsg, setShareMsg] = useState('');
   const formattedName = useMemo(() => formatName(form.fullName), [form.fullName]);
 
-  // 15-second kiosk auto-reset timer
   useEffect(() => {
     const timer = setInterval(() => {
       setResetCountdown((prev) => {
@@ -672,10 +673,9 @@ function SuccessStep({
         }
       }
     } catch {
-      // Ignore user aborting native share sheet
+      // User cancelled
     }
 
-    // Fallback logic
     downloadPng();
     setShareMsg('Your framed selfie has been downloaded! You can attach it in WhatsApp.');
     const waUrl = `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
@@ -728,7 +728,7 @@ function SuccessStep({
 }
 
 /* ==========================================================================
-   HIDDEN ADMIN SYSTEM (PROTECTED BY BACKEND AUTH)
+   HIDDEN ADMIN SYSTEM (WORKS ON NODE OR NETLIFY OFFLINE)
    ========================================================================== */
 function AdminSystem() {
   const [token, setToken] = useState(() => localStorage.getItem('sncf_admin_token') || '');
@@ -739,36 +739,39 @@ function AdminSystem() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Table filters & search
   const [searchQuery, setSearchQuery] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
   const [frameFilter, setFrameFilter] = useState('');
 
-  // Selected item modal view
   const [activeItem, setActiveItem] = useState(null);
 
   const verifyAndLoad = async (authToken) => {
-    if (!authToken) return;
     try {
       setLoading(true);
       setError('');
-      const res = await fetch('/api/admin/submissions', {
-        headers: { Authorization: `Bearer ${authToken}` }
-      });
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          localStorage.removeItem('sncf_admin_token');
-          setToken('');
-          setAuthError('Session expired. Please log in again.');
-        } else {
-          throw new Error('Failed to load submissions.');
+      // Try server API first
+      let serverLoaded = false;
+      if (authToken) {
+        try {
+          const res = await fetch('/api/admin/submissions', {
+            headers: { Authorization: `Bearer ${authToken}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setSubmissions(data.submissions || []);
+            serverLoaded = true;
+          }
+        } catch {
+          // Server not available
         }
-        return;
       }
 
-      const data = await res.json();
-      setSubmissions(data.submissions || []);
+      // If server is not reachable (e.g. Netlify static hosting), read from IndexedDB
+      if (!serverLoaded) {
+        const offlineData = await getOfflineSubmissions();
+        setSubmissions(offlineData);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -785,6 +788,15 @@ function AdminSystem() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setAuthError('');
+
+    // Default admin pass check
+    if (passwordInput === 'sncf2026') {
+      localStorage.setItem('sncf_admin_token', 'offline_admin_token');
+      setToken('offline_admin_token');
+      setPasswordInput('');
+      return;
+    }
+
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
@@ -801,19 +813,11 @@ function AdminSystem() {
         setAuthError(data.message || 'Invalid password.');
       }
     } catch {
-      setAuthError('Server error during login.');
+      setAuthError('Invalid admin password.');
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/admin/logout', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-    } catch {
-      // Ignore
-    }
+  const handleLogout = () => {
     localStorage.removeItem('sncf_admin_token');
     setToken('');
   };
@@ -821,26 +825,40 @@ function AdminSystem() {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this record?')) return;
     try {
-      const res = await fetch(`/api/admin/submissions/${id}`, {
+      await fetch(`/api/admin/submissions/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setSubmissions((prev) => prev.filter((item) => item.id !== id));
-        if (activeItem?.id === id) setActiveItem(null);
-      } else {
-        alert('Failed to delete submission.');
-      }
+      }).catch(() => {});
+
+      await deleteOfflineSubmission(id);
+      setSubmissions((prev) => prev.filter((item) => item.id !== id));
+      if (activeItem?.id === id) setActiveItem(null);
     } catch {
-      alert('Error connecting to server.');
+      alert('Error deleting submission.');
     }
   };
 
   const handleExportCSV = () => {
-    window.open(`/api/admin/export/csv`, '_blank');
+    const headers = ['ID', 'Date', 'Name', 'Formatted Name', 'Age', 'Branch', 'WhatsApp', 'Frame'];
+    const rows = filteredSubmissions.map((s) => [
+      s.id,
+      s.createdAt,
+      s.details?.fullName,
+      s.details?.formattedName,
+      s.details?.age,
+      s.details?.branch,
+      s.details?.whatsappNumber,
+      s.frameId
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c || ''}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sncf-blood-drive-submissions-${Date.now()}.csv`;
+    a.click();
   };
 
-  // Filtered submissions logic
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((sub) => {
       const q = searchQuery.toLowerCase().trim();
@@ -857,7 +875,6 @@ function AdminSystem() {
     });
   }, [submissions, searchQuery, branchFilter, frameFilter]);
 
-  // Statistics KPIs
   const stats = useMemo(() => {
     const total = submissions.length;
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -867,7 +884,6 @@ function AdminSystem() {
     return { total, today, frame1, frame2 };
   }, [submissions]);
 
-  // Unauthenticated Login Form
   if (!token) {
     return (
       <div className="admin-shell" style={{ maxWidth: '440px', paddingTop: '80px' }}>
@@ -887,7 +903,7 @@ function AdminSystem() {
               <input
                 type="password"
                 className="form-input"
-                placeholder="Enter admin password"
+                placeholder="Enter admin password (default: sncf2026)"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 required
@@ -927,7 +943,6 @@ function AdminSystem() {
         </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="admin-stats-grid">
         <div className="stat-card">
           <div className="stat-card__num">{stats.total}</div>
@@ -947,7 +962,6 @@ function AdminSystem() {
         </div>
       </div>
 
-      {/* Controls & Search */}
       <div className="admin-controls-card">
         <input
           type="text"
@@ -988,7 +1002,6 @@ function AdminSystem() {
       {loading ? <p style={{ textAlign: 'center', padding: '20px' }}>Loading submissions...</p> : null}
       {error ? <div className="alert alert--error">{error}</div> : null}
 
-      {/* Data Table */}
       <div className="admin-table-container">
         <table className="admin-table">
           <thead>
@@ -1056,7 +1069,6 @@ function AdminSystem() {
         </table>
       </div>
 
-      {/* Modal Detail View */}
       {activeItem ? (
         <div className="modal-overlay" onClick={() => setActiveItem(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1134,7 +1146,6 @@ function KioskContainer() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Handle canvas rendering when stepping to Review
   const generatePreviewCanvas = async () => {
     if (!capturedSelfie) return;
     try {
@@ -1166,10 +1177,10 @@ function KioskContainer() {
       setSaving(true);
       setError('');
 
-      const formData = new FormData();
-      formData.append(
-        'details',
-        JSON.stringify({
+      const submissionRecord = {
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        details: {
           fullName: form.fullName,
           formattedName: formatName(form.fullName),
           age: form.age,
@@ -1177,22 +1188,32 @@ function KioskContainer() {
           branch: form.branch,
           customBranch: form.customBranch,
           whatsappNumber: form.normalizedPhone || form.whatsappNumber
-        })
-      );
-      formData.append('frameId', selectedFrame.id);
-      formData.append('mirror', String(editorState.mirror));
-      formData.append('image', new File([previewBlob], 'framed-selfie.png', { type: 'image/png' }));
+        },
+        frameId: selectedFrame.id,
+        imageUrl: previewUrl,
+        status: 'Verified'
+      };
 
-      const res = await fetch('/api/submissions', {
-        method: 'POST',
-        body: formData
-      });
+      // Always save to offline IndexedDB store first
+      await saveOfflineSubmission(submissionRecord);
 
-      if (!res.ok) {
-        const failure = await res.json().catch(() => ({}));
-        throw new Error(failure.message || 'Failed to save selfie submission.');
+      // Attempt background POST to server if Express backend is running
+      try {
+        const formData = new FormData();
+        formData.append('details', JSON.stringify(submissionRecord.details));
+        formData.append('frameId', selectedFrame.id);
+        formData.append('mirror', String(editorState.mirror));
+        formData.append('image', new File([previewBlob], 'framed-selfie.png', { type: 'image/png' }));
+
+        await fetch('/api/submissions', {
+          method: 'POST',
+          body: formData
+        });
+      } catch {
+        // Safe to ignore if deployed as static frontend on Netlify
       }
 
+      // Smoothly advance to share step
       setStep('share');
     } catch (err) {
       setError(err.message || 'Save error.');
@@ -1226,7 +1247,6 @@ function KioskContainer() {
       <Header />
 
       {step === 'welcome' ? (
-        /* WELCOME / HERO SCREEN */
         <div className="hero-card">
           <div className="hero-card__decor" />
           <div className="hero-grid">
@@ -1271,7 +1291,6 @@ function KioskContainer() {
           </div>
         </div>
       ) : (
-        /* 4-STEP PUBLIC KIOSK WORKFLOW */
         <>
           <StepIndicator currentStep={step} />
 

@@ -13,18 +13,18 @@ export const FRAME_CONFIGS = [
     hasNameArea: false,
     normalized: {
       photoArea: {
-        x: 0.1416, // 145 / 1024
-        y: 0.1953, // 300 / 1536
-        width: 0.7178, // 735 / 1024
-        height: 0.5859 // 900 / 1536
+        x: 0.1396, // 143 / 1024
+        y: 0.1667, // 256 / 1536
+        width: 0.7227, // 740 / 1024
+        height: 0.6263 // 962 / 1536
       }
     },
     pixelCoords: {
       photoArea: {
-        x: 145,
-        y: 300,
-        width: 735,
-        height: 900
+        x: 143,
+        y: 256,
+        width: 740,
+        height: 962
       }
     }
   },
@@ -40,39 +40,39 @@ export const FRAME_CONFIGS = [
     hasNameArea: true,
     normalized: {
       photoArea: {
-        x: 0.1105, // 160 / 1448
-        y: 0.1196, // 245 / 2048
-        width: 0.7735, // 1120 / 1448
-        height: 0.4346 // 890 / 2048
+        x: 0.1575, // 228 / 1448
+        y: 0.1670, // 342 / 2048
+        width: 0.6865, // 994 / 1448
+        height: 0.5654 // 1158 / 2048 (from y=342 to y=1500)
       },
       nameArea: {
-        x: 0.1830, // 265 / 1448
-        y: 0.5029, // 1030 / 2048 -> Places text precisely inside the pink banner box at Y=1030px!
-        width: 0.6215, // 900 / 1448
-        height: 0.0562 // 115 / 2048
+        x: 0.1692, // 245 / 1448 (centered across the banner)
+        y: 0.7400, // 1515 / 2048 -> EXACT VERTICAL CENTER OF THE PINK NAME BANNER!
+        width: 0.6616, // 958 / 1448
+        height: 0.0464 // 95 / 2048
       }
     },
     pixelCoords: {
       photoArea: {
-        x: 160,
-        y: 245,
-        width: 1120,
-        height: 890
+        x: 228,
+        y: 342,
+        width: 994,
+        height: 1158
       },
       nameArea: {
-        x: 265,
-        y: 1030,
-        width: 900,
-        height: 115
+        x: 245,
+        y: 1515,
+        width: 958,
+        height: 95
       }
     },
     textStyle: {
       fontFamily: "'Outfit', 'Segoe UI', sans-serif",
-      fontSizeRatio: 0.034,
+      fontSizeRatio: 0.030,
       fontWeight: '700',
       color: '#8B0000',
-      shadowColor: 'rgba(255, 255, 255, 0.8)',
-      shadowBlur: 3,
+      shadowColor: 'rgba(255, 255, 255, 0.7)',
+      shadowBlur: 2,
       align: 'center',
       textBaseline: 'middle'
     }

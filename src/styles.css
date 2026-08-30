@@ -60,7 +60,7 @@ a {
 .kiosk-shell {
   width: min(1080px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 24px 0 64px;
+  padding: 24px 0 120px;
 }
 
 .kiosk-header {
@@ -631,8 +631,6 @@ a {
 
 .editor-user-photo {
   position: absolute;
-  left: 50%;
-  top: 50%;
   object-fit: cover;
   user-select: none;
   pointer-events: none;
