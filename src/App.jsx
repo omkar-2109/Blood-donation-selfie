@@ -750,12 +750,25 @@ function SuccessStep({
 
   const shareWithImage = async () => {
     setShareMsg('');
-    const whatsappText = `DHAN NIRANKAR JI 🙏\n\nI participated in the Humanness Blood Drive selfie campaign! Blood should flow in Veins, Not in Drains.\n\n- ${formattedName}`;
+    const whatsappText = `DHAN NIRANKAR JI 🙏\n\n• ${formattedName}`;
 
-    // Always download as backup
+    // Always download photo to device
     downloadPng();
 
-    // Try Native Web Share API (attaches actual image file on Mobile Android/iOS WhatsApp)
+    // Copy photo to clipboard if supported (for seamless Ctrl+V on WhatsApp Web / Desktop)
+    if (previewBlob && navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'image/png': previewBlob
+          })
+        ]);
+      } catch {
+        // Clipboard write not permitted
+      }
+    }
+
+    // Try Native Web Share API (attaches actual image file on Mobile Android/iOS)
     try {
       if (previewBlob && navigator.canShare) {
         const file = new File([previewBlob], `SNCF-Selfie-${formattedName.replace(/\s+/g, '-')}.png`, {
@@ -779,9 +792,22 @@ function SuccessStep({
     openDirectWhatsApp();
   };
 
-  const openDirectWhatsApp = () => {
-    const whatsappText = `DHAN NIRANKAR JI 🙏\n\nI participated in the Humanness Blood Drive selfie campaign! Blood should flow in Veins, Not in Drains.\n\n- ${formattedName}`;
+  const openDirectWhatsApp = async () => {
+    const whatsappText = `DHAN NIRANKAR JI 🙏\n\n• ${formattedName}`;
     const cleanPhone = getCleanTargetPhone();
+
+    // Copy photo to clipboard if supported
+    if (previewBlob && navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'image/png': previewBlob
+          })
+        ]);
+      } catch {
+        // Clipboard write not permitted
+      }
+    }
 
     setShareMsg('Framed photo downloaded to your device! Opening WhatsApp chat...');
 

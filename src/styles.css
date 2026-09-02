@@ -519,7 +519,7 @@ a {
    ========================================================================== */
 
 /* ==========================================================================
-   CAMERA & PHOTO ADJUSTMENT WITH LIVE FRAME OVERLAY
+   CAMERA & PHOTO ADJUSTMENT WITH LIVE FRAME OVERLAY (RESPONSIVE SCALING)
    ========================================================================== */
 
 .camera-container {
@@ -533,12 +533,11 @@ a {
 .camera-preview-shell {
   position: relative;
   width: 100%;
-  max-width: 380px;
-  max-height: 52vh;
-  margin: 0 auto;
+  max-width: min(340px, calc(48vh * 0.75), 85vw);
   aspect-ratio: 3 / 4;
+  margin: 0 auto;
   background: #121011;
-  border-radius: 22px;
+  border-radius: 20px;
   overflow: hidden;
   border: 2.5px solid var(--sncf-red-crimson);
   box-shadow: 0 12px 32px rgba(139, 0, 0, 0.16);
@@ -620,20 +619,17 @@ a {
 .editor-viewport {
   position: relative;
   width: 100%;
-  max-width: 380px;
-  max-height: 54vh;
+  max-width: min(340px, calc(48vh * (2 / 3)), 85vw);
+  aspect-ratio: 682 / 1024;
   margin: 0 auto;
   background: #1A1818;
   border-radius: 20px;
   overflow: hidden;
   touch-action: none;
   user-select: none;
-  border: 2px solid var(--sncf-red-crimson);
+  border: 2.5px solid var(--sncf-red-crimson);
   box-shadow: 0 12px 32px rgba(139, 0, 0, 0.18);
   cursor: grab;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .editor-viewport:active {
@@ -687,7 +683,7 @@ a {
   text-align: center;
   line-height: 1.15;
   word-break: break-word;
-  font-size: clamp(11px, 3.2vw, 14px);
+  font-size: clamp(11px, 3vw, 14px);
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
   padding: 0 4px;
 }
@@ -697,7 +693,7 @@ a {
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   color: #FFFFFF;
   padding: 5px 14px;
@@ -749,14 +745,15 @@ a {
    ========================================================================== */
 
 .preview-display-card {
+  position: relative;
   width: 100%;
-  max-width: min(390px, 88vw);
-  max-height: 62vh;
+  max-width: min(340px, calc(48vh * (2 / 3)), 85vw);
+  aspect-ratio: 682 / 1024;
   margin: 0 auto 20px;
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 16px 40px rgba(139, 0, 0, 0.12);
-  border: 1.5px solid var(--sncf-border);
+  box-shadow: 0 16px 40px rgba(139, 0, 0, 0.14);
+  border: 2px solid var(--sncf-border);
   background: #FFFFFF;
   display: flex;
   align-items: center;
@@ -767,8 +764,7 @@ a {
   display: block;
   width: 100%;
   height: 100%;
-  max-height: 62vh;
-  object-fit: contain;
+  object-fit: fill;
 }
 
 .formatted-name-banner {
