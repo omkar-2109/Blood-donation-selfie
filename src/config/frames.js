@@ -13,18 +13,18 @@ export const FRAME_CONFIGS = [
     hasNameArea: false,
     normalized: {
       photoArea: {
-        x: 0.1396, // 143 / 1024
-        y: 0.1667, // 256 / 1536
-        width: 0.7227, // 740 / 1024
-        height: 0.6263 // 962 / 1536
+        x: 0.1367, // 140 / 1024
+        y: 0.1660, // 255 / 1536
+        width: 0.7275, // 745 / 1024
+        height: 0.6289 // 966 / 1536
       }
     },
     pixelCoords: {
       photoArea: {
-        x: 143,
-        y: 256,
-        width: 740,
-        height: 962
+        x: 140,
+        y: 255,
+        width: 745,
+        height: 966
       }
     }
   },
@@ -41,37 +41,37 @@ export const FRAME_CONFIGS = [
     normalized: {
       photoArea: {
         x: 0.1378, // 94 / 682
-        y: 0.1670, // 171 / 1024
-        width: 0.7273, // 496 / 682
-        height: 0.5350 // from y=171 to y=718
+        y: 0.1660, // 170 / 1024
+        width: 0.7243, // 494 / 682
+        height: 0.5361 // 549 / 1024 (from y=170 to y=719)
       },
       nameArea: {
-        x: 0.1686, // 115 / 682
-        y: 0.7422, // 760 / 1024 -> EXACT VERTICAL CENTER OF THE PINK NAME BANNER!
-        width: 0.6628, // 452 / 682
-        height: 0.0840 // 86 / 1024
+        x: 0.1452, // 99 / 682
+        y: 0.7021, // 719 / 1024 -> TOP OF THE PINK NAME BANNER
+        width: 0.7111, // 485 / 682
+        height: 0.0879 // 90 / 1024 -> HEIGHT OF PINK BANNER (center at y=0.7461 / 764px)
       }
     },
     pixelCoords: {
       photoArea: {
         x: 94,
-        y: 171,
-        width: 496,
-        height: 547
+        y: 170,
+        width: 494,
+        height: 549
       },
       nameArea: {
-        x: 115,
-        y: 760,
-        width: 452,
-        height: 86
+        x: 99,
+        y: 719,
+        width: 485,
+        height: 90
       }
     },
     textStyle: {
       fontFamily: "'Outfit', 'Segoe UI', sans-serif",
-      fontSizeRatio: 0.034,
+      fontSizeRatio: 0.033,
       fontWeight: '700',
       color: '#8B0000',
-      shadowColor: 'rgba(255, 255, 255, 0.7)',
+      shadowColor: 'rgba(255, 255, 255, 0.8)',
       shadowBlur: 2,
       align: 'center',
       textBaseline: 'middle'

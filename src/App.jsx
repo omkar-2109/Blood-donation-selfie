@@ -269,7 +269,7 @@ function DetailsStep({ form, setForm, onNext }) {
 }
 
 /* ==========================================================================
-   STEP 2: CAMERA CAPTURE & POSITION ADJUSTMENT
+   STEP 2: CAMERA CAPTURE & PHOTO ADJUSTMENT (CLEAN PREVIEW, NO FRAME OVERLAY)
    ========================================================================== */
 function CameraAndAdjustStep({
   form,
@@ -285,15 +285,13 @@ function CameraAndAdjustStep({
 }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const editorViewportRef = useRef(null);
+  const photoViewportRef = useRef(null);
   const dragRef = useRef(null);
 
   const [facingMode, setFacingMode] = useState('user');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [capturedSelfie, setCapturedSelfie] = useState(null);
-
-  const formattedName = useMemo(() => formatName(form.fullName), [form.fullName]);
 
   const startCamera = async () => {
     try {
@@ -309,7 +307,7 @@ function CameraAndAdjustStep({
         aspectRatio: { ideal: 4 / 3 }
       };
 
-      // When using back camera, prefer the main 1x standard back lens (avoiding 0.5x ultrawide lens)
+      // When using back camera, prefer the main 1x standard back lens
       if (facingMode === 'environment' && navigator.mediaDevices?.enumerateDevices) {
         try {
           const devices = await navigator.mediaDevices.enumerateDevices();
@@ -320,7 +318,6 @@ function CameraAndAdjustStep({
           );
 
           if (backCameras.length > 0) {
-            // Find main standard back camera (avoid labels containing ultra, 0.5, macro, wide)
             const mainBackCam =
               backCameras.find(
                 (d) => !/ultra|0\.5|macro|wide-angle|wide angle/i.test(d.label) && /main|standard|0|camera 0/i.test(d.label)
@@ -336,7 +333,7 @@ function CameraAndAdjustStep({
             }
           }
         } catch {
-          // Fallback to facingMode ideal
+          // Fallback
         }
       }
 
@@ -368,6 +365,15 @@ function CameraAndAdjustStep({
       }
     };
   }, [facingMode, capturedSelfie]);
+
+  useEffect(() => {
+    if (photoViewportRef.current) {
+      const w = photoViewportRef.current.clientWidth;
+      if (w && w !== editorState.viewportWidth) {
+        setEditorState((prev) => ({ ...prev, viewportWidth: w }));
+      }
+    }
+  }, [capturedSelfie, selectedFrame, editorState.viewportWidth, setEditorState]);
 
   const switchCamera = () => {
     setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
@@ -434,21 +440,20 @@ function CameraAndAdjustStep({
     dragRef.current = null;
   };
 
-  const frameAspectRatioStyle = selectedFrame.aspectRatio || '1448 / 2048';
-  const photoCenter = {
-    x: (selectedFrame.normalized.photoArea.x + selectedFrame.normalized.photoArea.width / 2) * 100,
-    y: (selectedFrame.normalized.photoArea.y + selectedFrame.normalized.photoArea.height / 2) * 100
-  };
+  // Photo viewport aspect ratio matching the cutout area of selected frame
+  const cutoutRatio = `${selectedFrame.normalized.photoArea.width} / ${selectedFrame.normalized.photoArea.height}`;
 
   return (
     <div className="kiosk-card">
       <div className="kiosk-card__header">
         <div>
-          <h2 className="kiosk-card__title">Step 2: Capture & Adjust Photo</h2>
+          <h2 className="kiosk-card__title">
+            {!capturedSelfie ? 'Step 2: Take Your Selfie' : 'Step 2: Adjust Your Photo'}
+          </h2>
           <p className="kiosk-card__subtitle">
             {!capturedSelfie
-              ? 'Position yourself in the center and click Take Selfie.'
-              : 'Drag to move, zoom slider to fit your photo inside the campaign frame.'}
+              ? 'Center your face and click Take Selfie.'
+              : 'Adjust your photo position and zoom. The event frame will be applied in the next step.'}
           </p>
         </div>
         <button className="btn btn--ghost" onClick={onBack}>
@@ -459,9 +464,9 @@ function CameraAndAdjustStep({
       {cameraError ? <div className="alert alert--error">{cameraError}</div> : null}
 
       {!capturedSelfie ? (
-        /* CAMERA LIVE VIEW */
+        /* 1. CLEAN LIVE CAMERA (NO FRAME OVERLAY TO PREVENT MISALIGNMENT & EXPANSION) */
         <div className="camera-container">
-          <div className="camera-preview-shell" style={{ aspectRatio: frameAspectRatioStyle }}>
+          <div className="camera-preview-shell">
             <video
               ref={videoRef}
               className="camera-video"
@@ -470,9 +475,6 @@ function CameraAndAdjustStep({
               autoPlay
               style={{ transform: mirror ? 'scaleX(-1)' : 'none' }}
             />
-            {selectedFrame ? (
-              <img src={selectedFrame.src} alt="Frame Overlay Guide" className="frame-overlay-guide" />
-            ) : null}
           </div>
 
           <div className="camera-controls-bar">
@@ -488,7 +490,7 @@ function CameraAndAdjustStep({
           </div>
         </div>
       ) : (
-        /* PHOTO ADJUSTMENT EDITOR */
+        /* 2. PHOTO-ONLY PREVIEW & ADJUSTMENT (CLEAN VIEWPORT, NO FRAME OVERLAY) */
         <div>
           {/* Frame Selection */}
           <div className="frame-selector">
@@ -504,51 +506,33 @@ function CameraAndAdjustStep({
             ))}
           </div>
 
-          {/* Interactive Frame Viewport */}
-          <div
-            ref={editorViewportRef}
-            className="editor-viewport"
-            style={{ aspectRatio: frameAspectRatioStyle }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            onPointerLeave={endDrag}
-          >
-            {/* User Photo positioned in cutout center */}
-            <img
-              src={capturedSelfie.src}
-              alt="Selfie"
-              className="editor-user-photo"
-              style={{
-                left: `${photoCenter.x}%`,
-                top: `${photoCenter.y}%`,
-                width: `${selectedFrame.normalized.photoArea.width * 100}%`,
-                height: `${selectedFrame.normalized.photoArea.height * 100}%`,
-                objectFit: 'cover',
-                transform: `translate(-50%, -50%) translate(${editorState.offsetX}px, ${editorState.offsetY}px) scale(${editorState.zoom}) ${editorState.mirror ? 'scaleX(-1)' : 'scaleX(1)'} rotate(${editorState.rotationDeg}deg)`
-              }}
-            />
-            {/* Frame Overlay */}
-            <img src={selectedFrame.src} alt="Campaign Frame" className="editor-frame-image" />
-
-            {/* Name Overlay Preview positioned directly inside light-pink banner for Frame 2 */}
-            {selectedFrame.hasNameArea && selectedFrame.normalized.nameArea ? (
-              <div
-                className="editor-name-preview"
+          {/* Clean Photo Viewport without any frame overlay */}
+          <div className="photo-preview-shell">
+            <div
+              ref={photoViewportRef}
+              className="photo-preview-viewport"
+              style={{ aspectRatio: cutoutRatio }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onPointerLeave={endDrag}
+            >
+              <img
+                src={capturedSelfie.src}
+                alt="Captured Selfie"
+                className="photo-preview-image"
                 style={{
-                  top: `${selectedFrame.normalized.nameArea.y * 100}%`,
-                  left: `${selectedFrame.normalized.nameArea.x * 100}%`,
-                  width: `${selectedFrame.normalized.nameArea.width * 100}%`,
-                  height: `${selectedFrame.normalized.nameArea.height * 100}%`
+                  transform: `translate(${editorState.offsetX}px, ${editorState.offsetY}px) scale(${editorState.zoom}) ${editorState.mirror ? 'scaleX(-1)' : 'scaleX(1)'} rotate(${editorState.rotationDeg}deg)`
                 }}
-              >
-                {formattedName}
+              />
+              <div className="photo-preview-badge">
+                <span>✋ Drag to move photo</span>
               </div>
-            ) : null}
+            </div>
           </div>
 
-          {/* Controls Bar */}
+          {/* Photo Adjust Controls */}
           <div className="editor-toolbar">
             <div className="slider-group">
               <label>Zoom:</label>
@@ -588,10 +572,10 @@ function CameraAndAdjustStep({
 
             <button
               className="btn btn--primary btn--lg btn--full"
-              style={{ marginTop: '16px', marginBottom: '20px' }}
+              style={{ marginTop: '16px', marginBottom: '16px' }}
               onClick={onRenderPreview}
             >
-              Generate Final Frame Preview →
+              Proceed to Framed Preview →
             </button>
           </div>
         </div>
@@ -601,12 +585,13 @@ function CameraAndAdjustStep({
 }
 
 /* ==========================================================================
-   STEP 3: FINAL PREVIEW SCREEN
+   STEP 3: FINAL FRAMED PREVIEW SCREEN
    ========================================================================== */
 function ReviewStep({
   previewUrl,
   form,
   selectedFrame,
+  onSelectFrame,
   onAccept,
   onRetake,
   onAdjust,
@@ -619,18 +604,32 @@ function ReviewStep({
     <div className="kiosk-card">
       <div className="kiosk-card__header">
         <div>
-          <h2 className="kiosk-card__title">Step 3: Preview Your Selfie</h2>
+          <h2 className="kiosk-card__title">Step 3: Preview Your Framed Selfie</h2>
           <p className="kiosk-card__subtitle">
-            Review your final Humanness Blood Drive selfie before completing.
+            Review your final Humanness Blood Drive framed selfie before sharing.
           </p>
         </div>
       </div>
 
       {error ? <div className="alert alert--error">{error}</div> : null}
 
+      {/* Frame Switcher on Preview Screen */}
+      <div className="frame-selector" style={{ marginBottom: '16px' }}>
+        {FRAME_CONFIGS.map((frame) => (
+          <div
+            key={frame.id}
+            className={`frame-card-chip ${selectedFrame.id === frame.id ? 'frame-card-chip--selected' : ''}`}
+            onClick={() => onSelectFrame && onSelectFrame(frame)}
+          >
+            <h4>{frame.name}</h4>
+            <p>{frame.subtitle}</p>
+          </div>
+        ))}
+      </div>
+
       {selectedFrame.hasNameArea ? (
         <div className="formatted-name-banner">
-          <p>Personalized Campaign Name:</p>
+          <p>Personalized Name Banner:</p>
           <strong>{formattedName}</strong>
         </div>
       ) : null}
@@ -639,11 +638,13 @@ function ReviewStep({
         {previewUrl ? (
           <img src={previewUrl} alt="Final Framed Selfie Preview" className="preview-image" />
         ) : (
-          <p style={{ padding: '40px', textAlign: 'center' }}>Generating high-res preview...</p>
+          <p style={{ padding: '40px', textAlign: 'center', color: 'var(--sncf-muted)' }}>
+            Generating high-resolution framed selfie...
+          </p>
         )}
       </div>
 
-      <div className="camera-controls-bar" style={{ paddingBottom: '30px' }}>
+      <div className="camera-controls-bar" style={{ paddingBottom: '20px' }}>
         <button className="btn btn--secondary" onClick={onAdjust}>
           ✎ Adjust Photo
         </button>
@@ -653,7 +654,7 @@ function ReviewStep({
         </button>
 
         <button className="btn btn--primary btn--lg" onClick={onAccept} disabled={saving || !previewUrl}>
-          {saving ? 'Saving to Firebase Cloud...' : '✓ ACCEPT & CONTINUE'}
+          {saving ? 'Saving to Firebase Cloud...' : '✓ ACCEPT & CONTINUE →'}
         </button>
       </div>
     </div>
@@ -1222,16 +1223,17 @@ function KioskContainer() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const generatePreviewCanvas = async () => {
+  const generatePreviewCanvas = async (overrideFrame = null) => {
     if (!capturedSelfie) return;
     try {
       setError('');
+      const targetFrame = overrideFrame || selectedFrame;
       const formattedName = formatName(form.fullName);
       const canvas = await renderFramedSelfie({
         selfieSrc: capturedSelfie.src,
         selfieSize: capturedSelfie,
         editorState,
-        frameConfig: selectedFrame,
+        frameConfig: targetFrame,
         formattedName
       });
 
@@ -1245,6 +1247,11 @@ function KioskContainer() {
     } catch (err) {
       setError(err.message || 'Error generating frame preview.');
     }
+  };
+
+  const handleSelectFrameInReview = (newFrame) => {
+    setSelectedFrame(newFrame);
+    generatePreviewCanvas(newFrame);
   };
 
   const handleAcceptAndSave = async () => {
@@ -1397,6 +1404,7 @@ function KioskContainer() {
               previewUrl={previewUrl}
               form={form}
               selectedFrame={selectedFrame}
+              onSelectFrame={handleSelectFrameInReview}
               onAccept={handleAcceptAndSave}
               onRetake={() => setStep('camera')}
               onAdjust={() => setStep('edit')}

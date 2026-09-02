@@ -518,50 +518,50 @@ a {
    CAMERA & EDITOR INTERFACE (FIXED PREVIEW CUTOFF & ASPECT RATIOS)
    ========================================================================== */
 
+/* ==========================================================================
+   CAMERA & PHOTO ADJUSTMENT (CLEAN VIEWPORT WITHOUT FRAME OVERFLOW)
+   ========================================================================== */
+
 .camera-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
   align-items: center;
+  width: 100%;
 }
 
 .camera-preview-shell {
   position: relative;
   width: 100%;
-  max-width: min(420px, 85vw);
-  max-height: 62vh;
+  max-width: 380px;
+  max-height: 52vh;
   margin: 0 auto;
-  aspect-ratio: 1448 / 2048; /* Fits frame aspect ratio perfectly */
+  aspect-ratio: 3 / 4;
   background: #121011;
-  border-radius: 20px;
+  border-radius: 22px;
   overflow: hidden;
-  border: 2px solid var(--sncf-red);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  border: 2.5px solid var(--sncf-red-crimson);
+  box-shadow: 0 12px 32px rgba(139, 0, 0, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .camera-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.frame-overlay-guide {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  object-fit: contain;
-  opacity: 0.92;
-  z-index: 10;
+  display: block;
 }
 
 .camera-controls-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 /* Frame Selector Chips */
@@ -580,13 +580,19 @@ a {
   border: 2px solid var(--sncf-border);
   border-radius: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
 }
 
+.frame-card-chip:hover {
+  border-color: #D5C8B8;
+  background: #FAFAFA;
+}
+
 .frame-card-chip--selected {
-  border-color: var(--sncf-red-crimson);
-  background: var(--sncf-red-light);
+  border-color: var(--sncf-red-crimson) !important;
+  background: var(--sncf-red-light) !important;
+  box-shadow: 0 4px 16px rgba(200, 16, 46, 0.12);
 }
 
 .frame-card-chip h4 {
@@ -602,55 +608,64 @@ a {
   margin-top: 4px;
 }
 
-/* Interactive Photo Adjust Editor Viewport */
-.editor-viewport {
+/* Step 2 Clean Photo Preview Viewport (No Frame Clutter) */
+.photo-preview-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.photo-preview-viewport {
   position: relative;
   width: 100%;
-  max-width: min(420px, 85vw);
-  max-height: 62vh;
+  max-width: 380px;
+  max-height: 52vh;
   margin: 0 auto;
-  aspect-ratio: 1448 / 2048; /* Fits frame aspect ratio perfectly */
   background: #1A1818;
   border-radius: 20px;
   overflow: hidden;
   touch-action: none;
   user-select: none;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-  border: 2px solid var(--sncf-red);
+  border: 2px solid var(--sncf-red-crimson);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.editor-frame-image {
-  position: absolute;
-  inset: 0;
+.photo-preview-viewport:active {
+  cursor: grabbing;
+}
+
+.photo-preview-image {
   width: 100%;
   height: 100%;
-  pointer-events: none;
-  z-index: 10;
-  object-fit: contain;
-}
-
-.editor-user-photo {
-  position: absolute;
   object-fit: cover;
   user-select: none;
   pointer-events: none;
   transform-origin: center center;
+  will-change: transform;
 }
 
-/* Name Overlay Preview inside the exact Pink Banner box */
-.editor-name-preview {
+.photo-preview-badge {
   position: absolute;
-  z-index: 20;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  color: #FFFFFF;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 500;
   pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Outfit', sans-serif;
-  font-weight: 700;
-  color: #8B0000;
-  text-align: center;
-  line-height: 1.1;
-  word-break: break-word;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  z-index: 10;
 }
 
 .editor-toolbar {
@@ -658,7 +673,7 @@ a {
   flex-direction: column;
   gap: 12px;
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
   margin: 16px auto 0;
 }
 
@@ -668,41 +683,48 @@ a {
   gap: 12px;
   background: #FAFAFA;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid var(--sncf-border);
 }
 
 .slider-group label {
   font-size: 0.88rem;
   font-weight: 600;
-  min-width: 60px;
+  min-width: 55px;
+  color: var(--sncf-charcoal);
 }
 
 .slider-group input[type="range"] {
   flex: 1;
-  accent-color: var(--sncf-red);
+  accent-color: var(--sncf-red-crimson);
+  height: 6px;
+  cursor: pointer;
 }
 
 /* ==========================================================================
-   PREVIEW & SHARE
+   STEP 3 & 4: FINAL FRAMED PREVIEW & SHARE
    ========================================================================== */
 
 .preview-display-card {
   width: 100%;
-  max-width: min(420px, 85vw);
-  max-height: 65vh;
+  max-width: min(390px, 88vw);
+  max-height: 62vh;
   margin: 0 auto 20px;
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
-  border: 1px solid var(--sncf-border);
+  box-shadow: 0 16px 40px rgba(139, 0, 0, 0.12);
+  border: 1.5px solid var(--sncf-border);
   background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preview-image {
   display: block;
   width: 100%;
   height: 100%;
+  max-height: 62vh;
   object-fit: contain;
 }
 
@@ -710,13 +732,13 @@ a {
   background: var(--sncf-red-light);
   border: 1px solid rgba(200, 16, 46, 0.2);
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: 14px;
   text-align: center;
   margin-bottom: 20px;
 }
 
 .formatted-name-banner p {
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   color: var(--sncf-muted);
 }
 
