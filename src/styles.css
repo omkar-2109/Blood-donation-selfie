@@ -519,7 +519,7 @@ a {
    ========================================================================== */
 
 /* ==========================================================================
-   CAMERA & PHOTO ADJUSTMENT (CLEAN VIEWPORT WITHOUT FRAME OVERFLOW)
+   CAMERA & PHOTO ADJUSTMENT WITH LIVE FRAME OVERLAY
    ========================================================================== */
 
 .camera-container {
@@ -608,8 +608,8 @@ a {
   margin-top: 4px;
 }
 
-/* Step 2 Clean Photo Preview Viewport (No Frame Clutter) */
-.photo-preview-shell {
+/* Step 2 Interactive Photo Adjust Editor with Frame Overlay */
+.editor-shell {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -617,11 +617,11 @@ a {
   margin-bottom: 16px;
 }
 
-.photo-preview-viewport {
+.editor-viewport {
   position: relative;
   width: 100%;
   max-width: 380px;
-  max-height: 52vh;
+  max-height: 54vh;
   margin: 0 auto;
   background: #1A1818;
   border-radius: 20px;
@@ -629,18 +629,30 @@ a {
   touch-action: none;
   user-select: none;
   border: 2px solid var(--sncf-red-crimson);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 32px rgba(139, 0, 0, 0.18);
   cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.photo-preview-viewport:active {
+.editor-viewport:active {
   cursor: grabbing;
 }
 
-.photo-preview-image {
+/* Cutout window where photo is positioned */
+.editor-photo-cutout {
+  position: absolute;
+  overflow: hidden;
+  background: #1A1818;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-user-photo {
+  position: absolute;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -650,12 +662,42 @@ a {
   will-change: transform;
 }
 
-.photo-preview-badge {
+/* Frame Graphic on top */
+.editor-frame-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+  object-fit: fill;
+}
+
+/* Formatted Name Banner Overlay for Frame 2 */
+.editor-name-preview {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 700;
+  color: #8B0000;
+  text-align: center;
+  line-height: 1.15;
+  word-break: break-word;
+  font-size: clamp(11px, 3.2vw, 14px);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+  padding: 0 4px;
+}
+
+.editor-instruction-badge {
   position: absolute;
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(8px);
   color: #FFFFFF;
   padding: 5px 14px;
@@ -665,7 +707,8 @@ a {
   pointer-events: none;
   white-space: nowrap;
   letter-spacing: 0.01em;
-  z-index: 10;
+  z-index: 25;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .editor-toolbar {

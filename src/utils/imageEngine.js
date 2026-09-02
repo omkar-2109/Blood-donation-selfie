@@ -84,8 +84,10 @@ export async function renderFramedSelfie({
   const renderedWidth = origSelfieWidth * coverScale * zoom;
   const renderedHeight = origSelfieHeight * coverScale * zoom;
 
-  // Scaled offset conversion from viewport to output canvas scale
-  const scaleRatio = photoArea.width / Math.max(1, editorState.viewportWidth || photoArea.width);
+  // Base scale ratio from interactive cutout in DOM to high-res canvas cutout
+  const cutoutWidth = photoArea.width;
+  const domCutoutWidth = editorState.cutoutWidthPx || (editorState.viewportWidth ? editorState.viewportWidth * (frameConfig.normalized?.photoArea?.width || 0.72) : 280);
+  const scaleRatio = cutoutWidth / Math.max(1, domCutoutWidth);
   const adjustedOffsetX = (editorState.offsetX || 0) * scaleRatio;
   const adjustedOffsetY = (editorState.offsetY || 0) * scaleRatio;
 
